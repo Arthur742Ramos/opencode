@@ -42,7 +42,6 @@ export const MessageTable = sqliteTable(
     sessionID: text("session_id")
       .notNull()
       .references(() => SessionTable.id, { onDelete: "cascade" }),
-    createdAt: integer("created_at").notNull(),
     data: text("data", { mode: "json" }).notNull().$type<MessageV2.Info>(),
   },
   (table) => [index("message_session_idx").on(table.sessionID)],
@@ -61,12 +60,20 @@ export const PartTable = sqliteTable(
   (table) => [index("part_message_idx").on(table.messageID), index("part_session_idx").on(table.sessionID)],
 )
 
-export const SessionDiffTable = sqliteTable("session_diff", {
-  sessionID: text("session_id")
-    .primaryKey()
-    .references(() => SessionTable.id, { onDelete: "cascade" }),
-  data: text("data", { mode: "json" }).notNull().$type<Snapshot.FileDiff[]>(),
-})
+export const SessionDiffTable = sqliteTable(
+  "session_diff",
+  {
+    sessionID: text("session_id")
+      .notNull()
+      .references(() => SessionTable.id, { onDelete: "cascade" }),
+    file: text("file").notNull(),
+    before: text("before").notNull(),
+    after: text("after").notNull(),
+    additions: integer("additions").notNull(),
+    deletions: integer("deletions").notNull(),
+  },
+  (table) => [index("session_diff_session_idx").on(table.sessionID)],
+)
 
 export const TodoTable = sqliteTable("todo", {
   sessionID: text("session_id")

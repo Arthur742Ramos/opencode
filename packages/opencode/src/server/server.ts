@@ -40,7 +40,9 @@ import { lazy } from "../util/lazy"
 import { Todo } from "../session/todo"
 import { InstanceBootstrap } from "../project/bootstrap"
 import { MCP } from "../mcp"
-import { NotFoundError } from "../storage/db"
+import { db, NotFoundError } from "../storage/db"
+import { SessionTable } from "../session/session.sql"
+import { eq } from "drizzle-orm"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
 import { TuiEvent } from "@/cli/cmd/tui/event"
 import { Snapshot } from "@/snapshot"
@@ -959,14 +961,15 @@ export namespace Server {
             const sessionID = c.req.valid("param").sessionID
             const updates = c.req.valid("json")
 
-            const updatedSession = await Session.update(sessionID, (session) => {
-              if (updates.title !== undefined) {
-                session.title = updates.title
-              }
-              if (updates.time?.archived !== undefined) session.time.archived = updates.time.archived
-            })
+            const now = Date.now()
+            const set: Record<string, any> = { time_updated: now }
+            if (updates.title !== undefined) set.title = updates.title
+            if (updates.time?.archived !== undefined) set.time_archived = updates.time.archived
+            db().update(SessionTable).set(set).where(eq(SessionTable.id, sessionID)).run()
+            const session = await Session.get(sessionID)
+            Bus.publish(Session.Event.Updated, { info: session })
 
-            return c.json(updatedSession)
+            return c.json(session)
           },
         )
         .post(
