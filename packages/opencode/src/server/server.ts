@@ -40,7 +40,7 @@ import { lazy } from "../util/lazy"
 import { Todo } from "../session/todo"
 import { InstanceBootstrap } from "../project/bootstrap"
 import { MCP } from "../mcp"
-import { db, NotFoundError } from "../storage/db"
+import { Database, NotFoundError } from "../storage/db"
 import { SessionTable } from "../session/session.sql"
 import { eq } from "drizzle-orm"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
@@ -965,7 +965,7 @@ export namespace Server {
             const set: Record<string, any> = { time_updated: now }
             if (updates.title !== undefined) set.title = updates.title
             if (updates.time?.archived !== undefined) set.time_archived = updates.time.archived
-            db().update(SessionTable).set(set).where(eq(SessionTable.id, sessionID)).run()
+            Database.use((db) => db.update(SessionTable).set(set).where(eq(SessionTable.id, sessionID)).run())
             const session = await Session.get(sessionID)
             Bus.publish(Session.Event.Updated, { info: session })
 

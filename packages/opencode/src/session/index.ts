@@ -10,7 +10,7 @@ import { Flag } from "../flag/flag"
 import { Identifier } from "../id/id"
 import { Installation } from "../installation"
 
-import { db, NotFoundError } from "../storage/db"
+import { Database, NotFoundError } from "../storage/db"
 import { SessionTable, MessageTable, PartTable, SessionDiffTable } from "./session.sql"
 import { ShareTable } from "../share/share.sql"
 import { eq } from "drizzle-orm"
@@ -231,7 +231,7 @@ export namespace Session {
 
   export const touch = fn(Identifier.schema("session"), async (sessionID) => {
     const now = Date.now()
-    db().update(SessionTable).set({ time_updated: now }).where(eq(SessionTable.id, sessionID)).run()
+    Database.use((db) => db.update(SessionTable).set({ time_updated: now }).where(eq(SessionTable.id, sessionID)).run())
     const session = await get(sessionID)
     Bus.publish(Event.Updated, { info: session })
   })
@@ -258,21 +258,23 @@ export namespace Session {
       },
     }
     log.info("created", result)
-    db()
-      .insert(SessionTable)
-      .values({
-        id: result.id,
-        projectID: result.projectID,
-        parentID: result.parentID,
-        slug: result.slug,
-        directory: result.directory,
-        title: result.title,
-        version: result.version,
-        permission: result.permission,
-        time_created: result.time.created,
-        time_updated: result.time.updated,
-      })
-      .run()
+    Database.use((db) =>
+      db
+        .insert(SessionTable)
+        .values({
+          id: result.id,
+          projectID: result.projectID,
+          parentID: result.parentID,
+          slug: result.slug,
+          directory: result.directory,
+          title: result.title,
+          version: result.version,
+          permission: result.permission,
+          time_created: result.time.created,
+          time_updated: result.time.updated,
+        })
+        .run(),
+    )
     Bus.publish(Event.Created, {
       info: result,
     })
@@ -295,13 +297,13 @@ export namespace Session {
   }
 
   export const get = fn(Identifier.schema("session"), async (id) => {
-    const row = db().select().from(SessionTable).where(eq(SessionTable.id, id)).get()
+    const row = Database.use((db) => db.select().from(SessionTable).where(eq(SessionTable.id, id)).get())
     if (!row) throw new NotFoundError({ message: `Session not found: ${id}` })
     return fromRow(row)
   })
 
   export const getShare = fn(Identifier.schema("session"), async (id) => {
-    const row = db().select().from(ShareTable).where(eq(ShareTable.sessionID, id)).get()
+    const row = Database.use((db) => db.select().from(ShareTable).where(eq(ShareTable.sessionID, id)).get())
     return row?.data
   })
 
@@ -313,7 +315,9 @@ export namespace Session {
     const { ShareNext } = await import("@/share/share-next")
     const result = await ShareNext.create(id)
     const now = Date.now()
-    db().update(SessionTable).set({ share_url: result.url, time_updated: now }).where(eq(SessionTable.id, id)).run()
+    Database.use((db) =>
+      db.update(SessionTable).set({ share_url: result.url, time_updated: now }).where(eq(SessionTable.id, id)).run(),
+    )
     const session = await get(id)
     Bus.publish(Event.Updated, { info: session })
     return result
@@ -324,13 +328,17 @@ export namespace Session {
     const { ShareNext } = await import("@/share/share-next")
     await ShareNext.remove(id)
     const now = Date.now()
-    db().update(SessionTable).set({ share_url: null, time_updated: now }).where(eq(SessionTable.id, id)).run()
+    Database.use((db) =>
+      db.update(SessionTable).set({ share_url: null, time_updated: now }).where(eq(SessionTable.id, id)).run(),
+    )
     const session = await get(id)
     Bus.publish(Event.Updated, { info: session })
   })
 
   export const diff = fn(Identifier.schema("session"), async (sessionID) => {
-    const row = db().select().from(SessionDiffTable).where(eq(SessionDiffTable.sessionID, sessionID)).get()
+    const row = Database.use((db) =>
+      db.select().from(SessionDiffTable).where(eq(SessionDiffTable.sessionID, sessionID)).get(),
+    )
     return row?.data ?? []
   })
 
@@ -352,14 +360,16 @@ export namespace Session {
 
   export function* list() {
     const project = Instance.project
-    const rows = db().select().from(SessionTable).where(eq(SessionTable.projectID, project.id)).all()
+    const rows = Database.use((db) =>
+      db.select().from(SessionTable).where(eq(SessionTable.projectID, project.id)).all(),
+    )
     for (const row of rows) {
       yield fromRow(row)
     }
   }
 
   export const children = fn(Identifier.schema("session"), async (parentID) => {
-    const rows = db().select().from(SessionTable).where(eq(SessionTable.parentID, parentID)).all()
+    const rows = Database.use((db) => db.select().from(SessionTable).where(eq(SessionTable.parentID, parentID)).all())
     return rows.map((row) => fromRow(row))
   })
 
@@ -371,7 +381,7 @@ export namespace Session {
       }
       await unshare(sessionID).catch(() => {})
       // CASCADE delete handles messages and parts automatically
-      db().delete(SessionTable).where(eq(SessionTable.id, sessionID)).run()
+      Database.use((db) => db.delete(SessionTable).where(eq(SessionTable.id, sessionID)).run())
       Bus.publish(Event.Deleted, {
         info: session,
       })
@@ -381,15 +391,14 @@ export namespace Session {
   })
 
   export const updateMessage = fn(MessageV2.Info, async (msg) => {
-    db()
-      .insert(MessageTable)
-      .values({
-        id: msg.id,
-        sessionID: msg.sessionID,
-        data: msg,
-      })
-      .onConflictDoUpdate({ target: MessageTable.id, set: { data: msg } })
-      .run()
+    const { id, sessionID, ...data } = msg
+    Database.use((db) =>
+      db
+        .insert(MessageTable)
+        .values({ id, sessionID, data })
+        .onConflictDoUpdate({ target: MessageTable.id, set: { data } })
+        .run(),
+    )
     Bus.publish(MessageV2.Event.Updated, {
       info: msg,
     })
@@ -403,7 +412,7 @@ export namespace Session {
     }),
     async (input) => {
       // CASCADE delete handles parts automatically
-      db().delete(MessageTable).where(eq(MessageTable.id, input.messageID)).run()
+      Database.use((db) => db.delete(MessageTable).where(eq(MessageTable.id, input.messageID)).run())
       Bus.publish(MessageV2.Event.Removed, {
         sessionID: input.sessionID,
         messageID: input.messageID,
@@ -419,7 +428,7 @@ export namespace Session {
       partID: Identifier.schema("part"),
     }),
     async (input) => {
-      db().delete(PartTable).where(eq(PartTable.id, input.partID)).run()
+      Database.use((db) => db.delete(PartTable).where(eq(PartTable.id, input.partID)).run())
       Bus.publish(MessageV2.Event.PartRemoved, {
         sessionID: input.sessionID,
         messageID: input.messageID,
@@ -444,16 +453,14 @@ export namespace Session {
   export const updatePart = fn(UpdatePartInput, async (input) => {
     const part = "delta" in input ? input.part : input
     const delta = "delta" in input ? input.delta : undefined
-    db()
-      .insert(PartTable)
-      .values({
-        id: part.id,
-        messageID: part.messageID,
-        sessionID: part.sessionID,
-        data: part,
-      })
-      .onConflictDoUpdate({ target: PartTable.id, set: { data: part } })
-      .run()
+    const { id, messageID, sessionID: _, ...data } = part
+    Database.use((db) =>
+      db
+        .insert(PartTable)
+        .values({ id, messageID, data })
+        .onConflictDoUpdate({ target: PartTable.id, set: { data } })
+        .run(),
+    )
     Bus.publish(MessageV2.Event.PartUpdated, {
       part,
       delta,

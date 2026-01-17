@@ -44,7 +44,7 @@ import { SessionStatus } from "./status"
 import { LLM } from "./llm"
 import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
-import { db } from "@/storage/db"
+import { Database } from "@/storage/db"
 import { SessionTable } from "./session.sql"
 import { eq } from "drizzle-orm"
 
@@ -170,11 +170,13 @@ export namespace SessionPrompt {
     if (permissions.length > 0) {
       session.permission = permissions
       const now = Date.now()
-      db()
-        .update(SessionTable)
-        .set({ permission: permissions, time_updated: now })
-        .where(eq(SessionTable.id, session.id))
-        .run()
+      Database.use((db) =>
+        db
+          .update(SessionTable)
+          .set({ permission: permissions, time_updated: now })
+          .where(eq(SessionTable.id, session.id))
+          .run(),
+      )
       Bus.publish(Session.Event.Updated, {
         info: { ...session, permission: permissions, time: { ...session.time, updated: now } },
       })
@@ -1823,7 +1825,9 @@ NOTE: At any point in time through this workflow you should feel free to ask the
 
       const title = cleaned.length > 100 ? cleaned.substring(0, 97) + "..." : cleaned
       const now = Date.now()
-      db().update(SessionTable).set({ title, time_updated: now }).where(eq(SessionTable.id, input.session.id)).run()
+      Database.use((db) =>
+        db.update(SessionTable).set({ title, time_updated: now }).where(eq(SessionTable.id, input.session.id)).run(),
+      )
       const session = await Session.get(input.session.id)
       Bus.publish(Session.Event.Updated, { info: session })
       return session

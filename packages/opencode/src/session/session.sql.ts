@@ -42,7 +42,7 @@ export const MessageTable = sqliteTable(
     sessionID: text("session_id")
       .notNull()
       .references(() => SessionTable.id, { onDelete: "cascade" }),
-    data: text("data", { mode: "json" }).notNull().$type<MessageV2.Info>(),
+    data: text("data", { mode: "json" }).notNull().$type<Omit<MessageV2.Info, "id" | "sessionID">>(),
   },
   (table) => [index("message_session_idx").on(table.sessionID)],
 )
@@ -54,10 +54,9 @@ export const PartTable = sqliteTable(
     messageID: text("message_id")
       .notNull()
       .references(() => MessageTable.id, { onDelete: "cascade" }),
-    sessionID: text("session_id").notNull(),
-    data: text("data", { mode: "json" }).notNull().$type<MessageV2.Part>(),
+    data: text("data", { mode: "json" }).notNull().$type<Omit<MessageV2.Part, "id" | "messageID" | "sessionID">>(),
   },
-  (table) => [index("part_message_idx").on(table.messageID), index("part_session_idx").on(table.sessionID)],
+  (table) => [index("part_message_idx").on(table.messageID)],
 )
 
 export const SessionDiffTable = sqliteTable(

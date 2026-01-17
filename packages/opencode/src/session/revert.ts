@@ -5,7 +5,7 @@ import { MessageV2 } from "./message-v2"
 import { Session } from "."
 import { Log } from "../util/log"
 import { splitWhen } from "remeda"
-import { db } from "../storage/db"
+import { Database } from "../storage/db"
 import { MessageTable, PartTable, SessionTable } from "./session.sql"
 import { eq } from "drizzle-orm"
 import { Bus } from "../bus"
@@ -60,17 +60,19 @@ export namespace SessionRevert {
       await Snapshot.revert(patches)
       if (revert.snapshot) revert.diff = await Snapshot.diff(revert.snapshot)
       const now = Date.now()
-      db()
-        .update(SessionTable)
-        .set({
-          revert_messageID: revert.messageID,
-          revert_partID: revert.partID ?? null,
-          revert_snapshot: revert.snapshot ?? null,
-          revert_diff: revert.diff ?? null,
-          time_updated: now,
-        })
-        .where(eq(SessionTable.id, input.sessionID))
-        .run()
+      Database.use((db) =>
+        db
+          .update(SessionTable)
+          .set({
+            revert_messageID: revert.messageID,
+            revert_partID: revert.partID ?? null,
+            revert_snapshot: revert.snapshot ?? null,
+            revert_diff: revert.diff ?? null,
+            time_updated: now,
+          })
+          .where(eq(SessionTable.id, input.sessionID))
+          .run(),
+      )
       const updated = await Session.get(input.sessionID)
       Bus.publish(Session.Event.Updated, { info: updated })
       return updated
@@ -85,17 +87,19 @@ export namespace SessionRevert {
     if (!session.revert) return session
     if (session.revert.snapshot) await Snapshot.restore(session.revert.snapshot)
     const now = Date.now()
-    db()
-      .update(SessionTable)
-      .set({
-        revert_messageID: null,
-        revert_partID: null,
-        revert_snapshot: null,
-        revert_diff: null,
-        time_updated: now,
-      })
-      .where(eq(SessionTable.id, input.sessionID))
-      .run()
+    Database.use((db) =>
+      db
+        .update(SessionTable)
+        .set({
+          revert_messageID: null,
+          revert_partID: null,
+          revert_snapshot: null,
+          revert_diff: null,
+          time_updated: now,
+        })
+        .where(eq(SessionTable.id, input.sessionID))
+        .run(),
+    )
     const updated = await Session.get(input.sessionID)
     Bus.publish(Session.Event.Updated, { info: updated })
     return updated
@@ -109,7 +113,7 @@ export namespace SessionRevert {
     const [preserve, remove] = splitWhen(msgs, (x) => x.info.id === messageID)
     msgs = preserve
     for (const msg of remove) {
-      db().delete(MessageTable).where(eq(MessageTable.id, msg.info.id)).run()
+      Database.use((db) => db.delete(MessageTable).where(eq(MessageTable.id, msg.info.id)).run())
       await Bus.publish(MessageV2.Event.Removed, { sessionID: sessionID, messageID: msg.info.id })
     }
     const last = preserve.at(-1)
@@ -118,7 +122,7 @@ export namespace SessionRevert {
       const [preserveParts, removeParts] = splitWhen(last.parts, (x) => x.id === partID)
       last.parts = preserveParts
       for (const part of removeParts) {
-        db().delete(PartTable).where(eq(PartTable.id, part.id)).run()
+        Database.use((db) => db.delete(PartTable).where(eq(PartTable.id, part.id)).run())
         await Bus.publish(MessageV2.Event.PartRemoved, {
           sessionID: sessionID,
           messageID: last.info.id,
@@ -127,17 +131,19 @@ export namespace SessionRevert {
       }
     }
     const now = Date.now()
-    db()
-      .update(SessionTable)
-      .set({
-        revert_messageID: null,
-        revert_partID: null,
-        revert_snapshot: null,
-        revert_diff: null,
-        time_updated: now,
-      })
-      .where(eq(SessionTable.id, sessionID))
-      .run()
+    Database.use((db) =>
+      db
+        .update(SessionTable)
+        .set({
+          revert_messageID: null,
+          revert_partID: null,
+          revert_snapshot: null,
+          revert_diff: null,
+          time_updated: now,
+        })
+        .where(eq(SessionTable.id, sessionID))
+        .run(),
+    )
     const updated = await Session.get(sessionID)
     Bus.publish(Session.Event.Updated, { info: updated })
   }
