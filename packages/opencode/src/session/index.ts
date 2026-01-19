@@ -391,12 +391,12 @@ export namespace Session {
   })
 
   export const updateMessage = fn(MessageV2.Info, async (msg) => {
-    const { id, sessionID, ...data } = msg
+    const { id, sessionID, role, ...data } = msg
     Database.use((db) =>
       db
         .insert(MessageTable)
-        .values({ id, sessionID, data })
-        .onConflictDoUpdate({ target: MessageTable.id, set: { data } })
+        .values({ id, sessionID, role, data })
+        .onConflictDoUpdate({ target: MessageTable.id, set: { role, data } })
         .run(),
     )
     Bus.publish(MessageV2.Event.Updated, {
@@ -453,12 +453,12 @@ export namespace Session {
   export const updatePart = fn(UpdatePartInput, async (input) => {
     const part = "delta" in input ? input.part : input
     const delta = "delta" in input ? input.delta : undefined
-    const { id, messageID, sessionID: _, ...data } = part
+    const { id, messageID, sessionID: _, type, ...data } = part
     Database.use((db) =>
       db
         .insert(PartTable)
-        .values({ id, messageID, data })
-        .onConflictDoUpdate({ target: PartTable.id, set: { data } })
+        .values({ id, messageID, type, data })
+        .onConflictDoUpdate({ target: PartTable.id, set: { type, data, messageID } })
         .run(),
     )
     Bus.publish(MessageV2.Event.PartUpdated, {

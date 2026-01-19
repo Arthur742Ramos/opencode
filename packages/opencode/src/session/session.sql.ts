@@ -42,7 +42,8 @@ export const MessageTable = sqliteTable(
     sessionID: text("session_id")
       .notNull()
       .references(() => SessionTable.id, { onDelete: "cascade" }),
-    data: text("data", { mode: "json" }).notNull().$type<Omit<MessageV2.Info, "id" | "sessionID">>(),
+    role: text("role").$type<MessageV2.Info["role"]>().notNull(),
+    data: text("data", { mode: "json" }).notNull().$type<Omit<MessageV2.Info, "id" | "sessionID" | "role">>(),
   },
   (table) => [index("message_session_idx").on(table.sessionID)],
 )
@@ -51,27 +52,30 @@ export const PartTable = sqliteTable(
   "part",
   {
     id: text("id").primaryKey(),
-    messageID: text("message_id")
+    message_id: text("message_id")
       .notNull()
       .references(() => MessageTable.id, { onDelete: "cascade" }),
-    data: text("data", { mode: "json" }).notNull().$type<Omit<MessageV2.Part, "id" | "messageID" | "sessionID">>(),
+    type: text("type").$type<MessageV2.Part["type"]>().notNull(),
+    data: text("data", { mode: "json" })
+      .notNull()
+      .$type<Omit<MessageV2.Part, "id" | "messageID" | "sessionID" | "type">>(),
   },
-  (table) => [index("part_message_idx").on(table.messageID)],
+  (table) => [index("part_message_idx").on(table.message_id)],
 )
 
 export const SessionDiffTable = sqliteTable(
   "session_diff",
   {
-    sessionID: text("session_id")
+    session_id: text()
       .notNull()
       .references(() => SessionTable.id, { onDelete: "cascade" }),
-    file: text("file").notNull(),
-    before: text("before").notNull(),
-    after: text("after").notNull(),
-    additions: integer("additions").notNull(),
-    deletions: integer("deletions").notNull(),
+    file: text().notNull(),
+    before: text().notNull(),
+    after: text().notNull(),
+    additions: integer().notNull(),
+    deletions: integer().notNull(),
   },
-  (table) => [index("session_diff_session_idx").on(table.sessionID)],
+  (table) => [index("session_diff_session_idx").on(table.session_id)],
 )
 
 export const TodoTable = sqliteTable("todo", {

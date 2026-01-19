@@ -335,10 +335,6 @@ export namespace SessionPrompt {
           sessionID,
           mode: task.agent,
           agent: task.agent,
-          path: {
-            cwd: Instance.directory,
-            root: Instance.worktree,
-          },
           cost: 0,
           tokens: {
             input: 0,
@@ -535,10 +531,6 @@ export namespace SessionPrompt {
           role: "assistant",
           mode: agent.name,
           agent: agent.name,
-          path: {
-            cwd: Instance.directory,
-            root: Instance.worktree,
-          },
           cost: 0,
           tokens: {
             input: 0,
@@ -1422,10 +1414,6 @@ NOTE: At any point in time through this workflow you should feel free to ask the
       mode: input.agent,
       agent: input.agent,
       cost: 0,
-      path: {
-        cwd: Instance.directory,
-        root: Instance.worktree,
-      },
       time: {
         created: Date.now(),
       },
